@@ -1,7 +1,11 @@
 mod relay;
+mod identity;
 use std::net::{TcpListener};
 use std::thread;
+use dotenvy::dotenv;
+
 fn main() {
+    dotenv().ok();
     let proxy_address="127.0.0.1:6969";
     let target_address="127.0.0.1:6767";
 

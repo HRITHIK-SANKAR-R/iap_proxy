@@ -1,34 +1,43 @@
 mod relay;
 mod identity;
-use std::net::{TcpListener};
-use std::thread;
+use tokio::net::{TcpListener};
 use dotenvy::dotenv;
+// use tracing_subscriber;
+use tracing::{info,error};
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
+    tracing_subscriber::fmt::init();
+
     let proxy_address="127.0.0.1:6969";
     let target_address="127.0.0.1:6767";
 
-    let listener=match TcpListener::bind(proxy_address){
-        Ok(listener)=>listener,
-        Err(e)=>panic!("Failed to bind to address:{}",e),
+    let listener=match TcpListener::bind(proxy_address).await{
+      Ok(listener)=>listener,
+        Err(e)=> {
+          error!("Error binding to address:{}",e);
+          std::process::exit(1);
+        }
     };
 
-    println!("Listening on {}",proxy_address);
+    info!("IAP Proxy Listening on {}",proxy_address);
 
-    for stream in listener.incoming(){
-        match stream{
-            Ok(stream)=>{
-                println!("Accepted connection from {}",stream.peer_addr().unwrap());
-                thread::spawn(move ||{
-                    if let Err(e) = relay::proxy_bridge(stream,target_address){
-                        eprintln!("Error proxying connection:{}",e);
-                    }
-                });
+    loop{
+        let socket=match listener.accept().await{
+            Ok((s,_addr))=>s,
+            Err(e)=> {
+                error!("Error accepting connection:{}",e);
+                continue;
             }
-            Err(e)=>{
-                eprintln!("Error accepting connection:{}",e);
+        };
+
+        let target=target_address.to_string();
+
+        tokio::spawn(async move {
+            if let Err(e) = relay::proxy_bridge(socket,target).await {
+                error!("Error in proxy bridge: {}", e);
             }
-        }
+        });
     }
 }

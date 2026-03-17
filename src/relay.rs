@@ -3,7 +3,7 @@ use std::net::{TcpStream};
 use std::io::{copy, Read, Result, Write};
 use std::thread;
 use crate::identity;
-
+use tracing::{info,error,warn,debug};
 const MAX_HEADER_SIZE: usize = 16384; // 16 KB
 pub fn proxy_bridge(mut client_stream:TcpStream, target_addr:&str,)->Result<()>{
 
@@ -15,10 +15,11 @@ pub fn proxy_bridge(mut client_stream:TcpStream, target_addr:&str,)->Result<()>{
     let first_chunk=&buffer[..n];
 
     // We need a logic to intercept and validate the headers.
-    println!(">>> INTERCEPTED HEADERS ({} bytes):", n);
-    println!("{}", String::from_utf8_lossy(first_chunk));
+    debug!(">>> INTERCEPTED HEADERS ({} bytes):", n);
+    debug!("{}", String::from_utf8_lossy(first_chunk));
     if !identity::is_authorized(first_chunk){
         // We send a professional HTTP 401 response back to the user
+        warn!("Unauthorized Access attempt blocked: {}", target_addr);
         let body = "401 Unauthorized: Access Denied. Valid IAP Token Required.\n";
         let response = format!(
             "HTTP/1.1 401 Unauthorized\r\n\
@@ -41,8 +42,18 @@ pub fn proxy_bridge(mut client_stream:TcpStream, target_addr:&str,)->Result<()>{
     //
     let mut server_stream=match TcpStream::connect(target_addr){
         Ok(stream)=>stream,
-        Err(e)=>return Err(e),
+        Err(e)=>{
+            error!("Upstream Offline: {} -> {}", target_addr, e);
+            let body = "502 Bad Gateway: The backend server is unreachable.\n";
+            let response = format!(
+                "HTTP/1.1 502 Bad Gateway\r\nContent-Length: {}\r\n\r\n{}",
+                body.len(), body
+            );
+            let _ = client_stream.write_all(response.as_bytes());
+            return Ok(());
+        }
     };
+    info!("Connection Authorized: Forwarding to {}", target_addr);
     let _=match server_stream.write_all(first_chunk){
         Ok(_)=>{},
         Err(e)=>return Err(e),

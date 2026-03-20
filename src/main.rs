@@ -1,19 +1,23 @@
 mod relay;
 mod identity;
+mod state;
+
+use std::env;
 use tokio::net::{TcpListener};
-use dotenvy::dotenv;
-// use tracing_subscriber;
 use tracing::{info,error};
+use std::sync::Arc;
+use std::sync::atomic::{Ordering};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dotenv().ok();
+    dotenvy::dotenv().ok();
     tracing_subscriber::fmt::init();
 
-    let proxy_address="127.0.0.1:6969";
-    let target_address="127.0.0.1:6767";
+    let proxy_address=env::var("PROXY_ADDRESS").unwrap_or_else(|_|"127.0.0.1:6969".to_string());
+    let target_address=env::var("TARGET_ADDRESS").unwrap_or_else(|_|"127.0.0.1:6767".to_string());
+    let state=Arc::new(state::ProxyState::new(target_address));
 
-    let listener=match TcpListener::bind(proxy_address).await{
+    let listener=match TcpListener::bind(&proxy_address).await{
       Ok(listener)=>listener,
         Err(e)=> {
           error!("Error binding to address:{}",e);
@@ -21,21 +25,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    info!("IAP Proxy Listening on {}",proxy_address);
+    info!("IAP Proxy Listening on {}",&proxy_address);
 
     loop{
-        let socket=match listener.accept().await{
-            Ok((s,_addr))=>s,
+        let (socket,addr)=match listener.accept().await{
+            Ok((s,addr))=>(s,addr),
             Err(e)=> {
                 error!("Error accepting connection:{}",e);
                 continue;
             }
         };
+        let client_ip=addr.ip();
 
-        let target=target_address.to_string();
-
+        let task_state=Arc::clone(&state);
+        task_state.total.fetch_add(1,Ordering::SeqCst);
         tokio::spawn(async move {
-            if let Err(e) = relay::proxy_bridge(socket,target).await {
+            if let Err(e) = relay::proxy_bridge(socket,task_state,client_ip).await {
                 error!("Error in proxy bridge: {}", e);
             }
         });

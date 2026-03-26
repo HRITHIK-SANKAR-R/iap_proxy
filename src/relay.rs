@@ -12,7 +12,7 @@ pub async fn proxy_bridge(mut client_stream:TcpStream,
                           client_ip:IpAddr,
                           )->Result<()>{
 
-    // 1st Checking of the Offending List or Blocked List to atop IP from accessing it
+    // 1st Che2cking of the Offending List or Blocked List to atop IP from accessing it
     if let(Some(fail_cnt))=state.offenders.get(&client_ip){
         if *fail_cnt>3{
             warn!("IP Blocked: {} - Strikes {}",client_ip,*fail_cnt);
@@ -37,7 +37,7 @@ pub async fn proxy_bridge(mut client_stream:TcpStream,
     // We need a logic to intercept and validate the headers. We are checking the Authentication Token
     debug!(">>> INTERCEPTED HEADERS ({} bytes):", n);
     debug!("{}", String::from_utf8_lossy(first_chunk));
-    if !identity::is_authorized(first_chunk){
+    if !identity::is_authorized(first_chunk,&state.decoding_key){
         state.blocked.fetch_add(1,Ordering::SeqCst);
         let mut entry=state.offenders.entry(client_ip).or_insert(0);
         *entry+=1;

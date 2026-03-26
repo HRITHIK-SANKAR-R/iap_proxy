@@ -14,8 +14,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     let proxy_address=env::var("PROXY_ADDRESS").unwrap_or_else(|_|"127.0.0.1:6969".to_string());
-    let target_address=env::var("TARGET_ADDRESS").unwrap_or_else(|_|"127.0.0.1:6767".to_string());
-    let state=Arc::new(state::ProxyState::new(target_address));
+
+    let target_address = env::var("TARGET_ADDRESS").unwrap_or_else(|_| "127.0.0.1:6767".to_string());
+    let secret = env::var("JWT_SECRET").unwrap_or_else(|_| "change-me-immediately".to_string());
+
+    // Initialize state with the secret
+    let state = Arc::new(state::ProxyState::new(target_address, secret));
 
     let listener=match TcpListener::bind(&proxy_address).await{
       Ok(listener)=>listener,

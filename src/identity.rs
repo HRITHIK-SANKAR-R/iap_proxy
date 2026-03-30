@@ -1,8 +1,8 @@
-use std::ascii::AsciiExt;
+
 use httparse::Request;
-use std::env;
-use jsonwebtoken::{decode, DecodingKey, Validation};
+use jsonwebtoken::{DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
+use serde::de::Unexpected::Option;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Claims{
@@ -11,7 +11,7 @@ pub struct Claims{
     pub role:String,
 }
 
-pub fn is_authorized(buffer:&[u8],key:&DecodingKey) -> bool{
+pub fn is_authorized(buffer:&[u8],key:&DecodingKey) -> std::option::Option<Claims>{
     // let secret_token = env::var("IAP_SECRET_TOKEN").unwrap_or_else(|_| "BLOCKED".to_string());
     let mut headers=[httparse::EMPTY_HEADER;64];
     let mut req=Request::new(&mut headers);
@@ -38,9 +38,11 @@ pub fn is_authorized(buffer:&[u8],key:&DecodingKey) -> bool{
 
 
                 let validation=Validation::default();
-                return decode::<Claims>(token,key,&validation).is_ok();
+                return jsonwebtoken::decode::<Claims>(token,key,&validation)
+                    .ok()
+                    .map(|data| data.claims);
             }
         }}
     }
-    false
+    None
 }

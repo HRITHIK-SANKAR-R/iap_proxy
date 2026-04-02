@@ -2,7 +2,6 @@
 use httparse::Request;
 use jsonwebtoken::{DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
-use serde::de::Unexpected::Option;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Claims{

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO offenders (ip_address, strikes)\n                     VALUES ($1, $2)\n                     ON CONFLICT (ip_address)\n                     DO UPDATE SET strikes = $2, last_attack = CURRENT_TIMESTAMP",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "490947709f25369656b66665a0f785ce780e17be029b6584e8098a176dfd9835"
+}

@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # 1. The Database Container
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vanguard_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  # 2. Your Rust Proxy Container
+  proxy:
+    build: .
+    environment:
+      # Notice we point to the 'db' container, not localhost!
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/vanguard_db
+      # Bind to 0.0.0.0 so Docker exposes the port to the outside world
+      - PROXY_ADDRESS=0.0.0.0:6969
+      # Route to the host machine so it can reach your Python backend
+      - TARGET_ADDRESS=host.docker.internal:8080
+      - JWT_SECRET=change-me-immediately
+    ports:
+      - "6969:6969"
+    depends_on:
+      db:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  pgdata:
